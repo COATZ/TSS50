@@ -12,7 +12,7 @@ ctrees = [11, 236, 9]
 cground = [187, 70, 156]
 csky = [29, 26, 199]
 cblack = [0, 0, 0]
-seg_color = [ctrees, cground, csky]
+seg_color = [cblack, ctrees, cground, csky]
 
 Learning_Rate = 1e-5
 width = height = 100  # image width and height
@@ -26,9 +26,12 @@ transformImg = tf.Compose([tf.ToPILImage(), tf.Resize((height, width)), tf.ToTen
                           tf.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
 transformAnn = tf.Compose([tf.ToPILImage(), tf.Resize((height, width), tf.InterpolationMode.NEAREST), tf.ToTensor()])
 
+#---------------------Metrics logger ---------------------------------------------------------
+acc_meter = utils.AverageMeter()
+intersection_meter = utils.AverageMeter()
+union_meter = utils.AverageMeter()
+
 #---------------------Read image ---------------------------------------------------------
-
-
 def ReadRandomImage():  # First lets load random image and  the corresponding annotation
     idx = np.random.randint(0, len(ListImages))  # Select random image
     Img = cv2.imread(os.path.join(TrainFolder, "RGB", ListImages[idx]))[:, :, 0:3]
@@ -64,7 +67,7 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # Net = torchvision.models.segmentation.deeplabv3_resnet50(pretrained=True)  # Load net
 # Net.classifier[4] = torch.nn.Conv2d(256, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
 Net = torchvision.models.segmentation.fcn_resnet50(pretrained=True)  # Load net
-Net.classifier[4] = torch.nn.Conv2d(512, 3, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
+Net.classifier[4] = torch.nn.Conv2d(512, len(seg_color), kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
 # Net = fcn2.fcn_resnet18()  # Load net
 # Net.classifier[4] = torch.nn.Conv2d(512, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
 
@@ -84,12 +87,20 @@ for itr in range(10000):  # Training loop
     Loss = criterion(Pred, ann.long())  # Calculate cross entropy loss
     Loss.backward()  # Backpropogate loss
     optimizer.step()  # Apply gradient descent change to weight
-    seg = torch.argmax(Pred[0], 0).cpu().detach().numpy()  # Get  prediction classes
     if itr % 100 == 0:
-        print(itr, ") Loss=", Loss.data.cpu().numpy())
-    # if itr % 1000 == 0:  # Save model weight once every 60k steps permenant file
-    #     print("Saving Model" + str(itr) + ".torch")
-    #     torch.save(Net.state_dict(),   str(itr) + ".torch")
+        acc_meter.initialize(0)
+        intersection_meter.initialize(0)
+        union_meter.initialize(0)
+        for idx in range(batchSize):
+            seg_pred = torch.argmax(Pred[idx], 0).cpu().detach().numpy()[..., np.newaxis]  # Get  prediction classes
+            ann_test = ann[idx].cpu().detach().numpy()[..., np.newaxis]
+            acc, pix = utils.accuracy(seg_pred, ann_test)
+            intersection, union = utils.intersectionAndUnion(seg_pred, ann_test, len(seg_color))
+            acc_meter.update(acc, pix)
+            intersection_meter.update(intersection)
+            union_meter.update(union)
+        miou = intersection_meter.sum / (union_meter.sum + 1e-10)
+        print("Iter {} Loss {} Acc {} MIoU {}".format(itr, Loss.data.cpu().numpy(), acc, miou))
 
 print("Saving Model" + str(net) + ".torch")
 torch.save(Net.state_dict(), os.path.join("./ckpt/", str(net) + ".torch"))

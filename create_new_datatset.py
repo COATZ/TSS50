@@ -21,8 +21,8 @@ ccounter = 0
 nb_max_img = 5
 for file in [f for f in os.listdir(dataset_path) if (os.path.isfile(os.path.join(dataset_path, f)) and f.endswith('_seg.png'))]:
     ccounter += 1
-    if int(file.split('_')[0]) <= nb_max_img:
-        # if int(file.split('_')[0]) == 42:
+    # if int(file.split('_')[0]) <= nb_max_img:
+    if int(file.split('_')[0]) == 42:
         img = cv2.imread(os.path.join(dataset_path, file), cv2.IMREAD_COLOR)[..., ::-1]
         for idx, lbl in enumerate(["TREE", "SKY", "GROUND"]):
             os.makedirs(os.path.join(new_dataset_path, str(lbl)), exist_ok=True)

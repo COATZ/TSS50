@@ -15,28 +15,37 @@ cblack = [0, 0, 0]
 seg_color = [ctrees, cground, csky]
 
 imagePath = "/media/cartizzu/DATA/DATASETS/GRID_425_DATA_1_bil_test_1/CUBE/TEST/"
-img_loc = "1_0_back_custom_rgb.png"
-
+img_loc = "42_0_back_custom_rgb.png"
 height = width = 100
+
+#----------------------------------------------Transform image-------------------------------------------------------------------
 transformImg = tf.Compose([tf.ToPILImage(), tf.Resize((height, width)), tf.ToTensor(), tf.Normalize(
     (0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])  # tf.Resize((300,600)),tf.RandomRotation(145)])#
 
+#---------------------Metrics logger ---------------------------------------------------------
+acc_meter = utils.AverageMeter()
+intersection_meter = utils.AverageMeter()
+union_meter = utils.AverageMeter()
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device(
     'cpu')  # Check if there is GPU if not set trainning to CPU (very slow)
-# Net = torchvision.models.segmentation.deeplabv3_resnet50(pretrained=True)  # Load net
-# Net.classifier[4] = torch.nn.Conv2d(256, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
+# # Net = torchvision.models.segmentation.deeplabv3_resnet50(pretrained=True)  # Load net
+# # Net.classifier[4] = torch.nn.Conv2d(256, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
 Net = torchvision.models.segmentation.fcn_resnet50(pretrained=True)  # Load net
-Net.classifier[4] = torch.nn.Conv2d(512, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
-# Net = fcn2.fcn_resnet18()  # Load net
-# Net.classifier[4] = torch.nn.Conv2d(512, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
+Net.classifier[4] = torch.nn.Conv2d(512, 3, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
+# # Net = fcn2.fcn_resnet18()  # Load net
+# # Net.classifier[4] = torch.nn.Conv2d(512, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
 
 net = "fcn_resnet50"
-Net = Net.to(device)  # Set net to GPU or CPU
-modelPath = str(net) + '.torch'
+modelPath = os.path.join("./ckpt", str(net) + '.torch')
 Net.load_state_dict(torch.load(modelPath))  # Load trained model
+Net = Net.to(device)  # Set net to GPU or CPU
 Net.eval()  # Set to evaluation mode
 # print(Net)
+
+acc_meter.initialize(0)
+intersection_meter.initialize(0)
+union_meter.initialize(0)
 
 img_filename = os.path.join(imagePath, img_loc)
 Img = cv2.imread(img_filename)  # load test image
@@ -48,18 +57,23 @@ Img = torch.autograd.Variable(Img, requires_grad=False).to(device).unsqueeze(0)
 with torch.no_grad():
     Prd = Net(Img)['out']  # Run net
 Prd = tf.Resize((height, width))(Prd[0])  # Resize to origninal size
-seg = torch.argmax(Prd, 0).cpu().detach().numpy()[..., np.newaxis]  # Get  prediction classes
+seg_pred = torch.argmax(Prd, 0).cpu().detach().numpy()[..., np.newaxis]  # Get  prediction classes
+# utils.get_unique2(seg_pred)
+seg_rgb = utils.colorEncode(seg_pred, seg_color)
 
-gt_img = cv2.imread(os.path.join(imagePath, img_loc).replace("_rgb.png", "_seg.png"), cv2.IMREAD_COLOR)
+gt_img = cv2.imread(os.path.join(imagePath, img_loc).replace("_rgb.png", "_seg.png"), cv2.IMREAD_COLOR)[:, :, ::-1]
 gt_label = np.zeros((height, width))
-gt_label[gt_img[..., 0] == ctrees[0]] = 1
-acc = utils.accuracy(seg, gt_label)
-assert acc[-1] == int(height * width), "Not all pixels used in acc computation"
-print("Accuracy {}".format(acc[0]))
+for idx in range(len(seg_color)):
+    gt_label[np.where((gt_img == seg_color[idx]).all(axis=2))] = idx+1
+acc, pix = utils.accuracy(seg_pred, gt_label)
+intersection, union = utils.intersectionAndUnion(seg_pred, gt_label, len(seg_color))
+acc_meter.update(acc, pix)
+intersection_meter.update(intersection)
+union_meter.update(union)
 
-seg_rgb = utils.colorEncode(seg, seg_color)
-miou = utils.intersectionAndUnion(seg_rgb, gt_img, 3)
-print("MIoU {}".format(acc[0]))
+iou = intersection_meter.sum / (union_meter.sum + 1e-10)
+
+print("Acc {} MIoU {} IoU {}".format(acc_meter.average(), iou.mean(), iou))
 
 plt.imshow(seg_rgb)  # display image
 plt.show()
