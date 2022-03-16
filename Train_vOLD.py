@@ -6,13 +6,11 @@ import torchvision.models.segmentation
 import torch
 import torchvision.transforms as tf
 import fcn2
-import utils
 
 ctrees = [11, 236, 9]
 cground = [187, 70, 156]
 csky = [29, 26, 199]
 cblack = [0, 0, 0]
-seg_color = [ctrees, cground, csky]
 
 Learning_Rate = 1e-5
 width = height = 100  # image width and height
@@ -32,25 +30,28 @@ transformAnn = tf.Compose([tf.ToPILImage(), tf.Resize((height, width), tf.Interp
 def ReadRandomImage():  # First lets load random image and  the corresponding annotation
     idx = np.random.randint(0, len(ListImages))  # Select random image
     Img = cv2.imread(os.path.join(TrainFolder, "RGB", ListImages[idx]))[:, :, 0:3]
-    Seg = cv2.imread(os.path.join(TrainFolder, "SEG", ListImages[idx].replace(
-        "_rgb.png", "_seg.png")))[:, :, ::-1]
-    # Trees = cv2.imread(os.path.join(TrainFolder, "TREE", ListImages[idx].replace(
-    #     "_rgb.png", "_seg.png")), cv2.IMREAD_COLOR)
-    # Sky = cv2.imread(os.path.join(TrainFolder, "SKY", ListImages[idx].replace(
-    #     "_rgb.png", "_seg.png")), cv2.IMREAD_COLOR)
-    # Ground = cv2.imread(os.path.join(TrainFolder, "GROUND", ListImages[idx].replace(
-    #     "_rgb.png", "_seg.png")), cv2.IMREAD_COLOR)
-
-    AnnMap = np.zeros(Seg.shape[0:2], np.float32)
-    for idx in range(len(seg_color)):
-        AnnMap[np.where((Seg == seg_color[idx]).all(axis=2))] = idx
-    # utils.get_unique2(AnnMap)
+    Trees = cv2.imread(os.path.join(TrainFolder, "TREE", ListImages[idx].replace(
+        "_rgb.png", "_seg.png")), cv2.IMREAD_COLOR)
+    # arr = np.unique(Trees.reshape(-1, 3), axis=0)
+    # print(arr)
+    # print(Trees)
+    # Vessel = cv2.imread(os.path.join(TrainFolder, "Semantic/1_Vessel", ListImages[idx].replace("jpg", "png")), 0)
+    AnnMap = np.zeros(Img.shape[0:2], np.float32)
+    if Trees is not None:
+        AnnMap[Trees[..., 0] == ctrees[0]] = 1
+    # if Trees is not None:
+    #     AnnMap[Trees == 1] = 2
     Img = transformImg(Img)
     AnnMap = transformAnn(AnnMap)
+    # print(AnnMap)
+    # arr = np.unique(AnnMap)
+    # print(arr)
+    # sys.exit()
     return Img, AnnMap
 
-
 #--------------Load batch of images-----------------------------------------------------
+
+
 def LoadBatch():  # Load batch of images
     images = torch.zeros([batchSize, 3, height, width])
     ann = torch.zeros([batchSize, height, width])
@@ -64,7 +65,7 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # Net = torchvision.models.segmentation.deeplabv3_resnet50(pretrained=True)  # Load net
 # Net.classifier[4] = torch.nn.Conv2d(256, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
 Net = torchvision.models.segmentation.fcn_resnet50(pretrained=True)  # Load net
-Net.classifier[4] = torch.nn.Conv2d(512, 3, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
+Net.classifier[4] = torch.nn.Conv2d(512, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
 # Net = fcn2.fcn_resnet18()  # Load net
 # Net.classifier[4] = torch.nn.Conv2d(512, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
 
@@ -87,9 +88,9 @@ for itr in range(10000):  # Training loop
     seg = torch.argmax(Pred[0], 0).cpu().detach().numpy()  # Get  prediction classes
     if itr % 100 == 0:
         print(itr, ") Loss=", Loss.data.cpu().numpy())
-    # if itr % 1000 == 0:  # Save model weight once every 60k steps permenant file
-    #     print("Saving Model" + str(itr) + ".torch")
-    #     torch.save(Net.state_dict(),   str(itr) + ".torch")
+    if itr % 1000 == 0:  # Save model weight once every 60k steps permenant file
+        print("Saving Model" + str(itr) + ".torch")
+        torch.save(Net.state_dict(),   str(itr) + ".torch")
 
 print("Saving Model" + str(net) + ".torch")
-torch.save(Net.state_dict(), os.path.join("./ckpt/", str(net) + ".torch"))
+torch.save(Net.state_dict(), str(net) + ".torch")
