@@ -2,7 +2,7 @@ from typing import Optional
 
 from torch import nn
 
-import resnet
+import resnet_sphe as resnet
 from torchvision.models._utils import IntermediateLayerGetter
 from torchvision.models.segmentation._utils import _SimpleSegmentationModel, _load_weights
 
@@ -92,6 +92,7 @@ def fcn_resnet18(
     #     arch = "fcn_resnet18_coco"
     #     _load_weights(arch, model, model_urls.get(arch, None), progress)
     return model
+
 
 def fcn_resnet50(
     pretrained: bool = False,

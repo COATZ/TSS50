@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['../../../../../../../home/cartizzu/.config/spyder-py3/temp.py', 'Train.py', 'create_new_datatset.py', 'fcn2.py']
+recent_files = ['Train.py', 'Infer.py', 'create_new_datatset.py', 'utils.py', 'DeformConv2d_sphe.py', 'create_offset_tensor.py', 'fcn2.py', 'fcn2_sphe.py', 'resnet_sphe.py']
 
 [main]
 version = 0.2.0
