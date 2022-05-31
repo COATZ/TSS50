@@ -9,6 +9,8 @@ from torchvision.utils import _log_api_usage_once
 
 from DeformConv2d_sphe import DeformConv2d_sphe
 
+from operator import eq
+
 CCOUNT = 0
 
 __all__ = [
@@ -62,11 +64,10 @@ model_urls = {
 #             dilation=dilation,
 #         )
 
-def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, dilation: int = 1) -> nn.Conv2d:
+def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, dilation: int = 1, iSYMBOL=eq, LAYER_CCOUNT: int = 0) -> nn.Conv2d:
     global CCOUNT
     CCOUNT += 1
-    LAYER_CCOUNT = 0
-    if CCOUNT >= LAYER_CCOUNT:
+    if iSYMBOL(CCOUNT, LAYER_CCOUNT):
         return DeformConv2d_sphe(
             in_planes,
             out_planes,
@@ -133,6 +134,8 @@ class BasicBlock(nn.Module):
         base_width: int = 64,
         dilation: int = 1,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
+        iSYMBOL=eq,
+        LAYER_CCOUNT: int = 0,
     ) -> None:
         super().__init__()
         if norm_layer is None:
@@ -142,10 +145,10 @@ class BasicBlock(nn.Module):
         if dilation > 1:
             raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        self.conv1 = conv3x3(inplanes, planes, stride)
+        self.conv1 = conv3x3(inplanes, planes, stride, iSYMBOL, LAYER_CCOUNT)
         self.bn1 = norm_layer(planes)
         self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(planes, planes)
+        self.conv2 = conv3x3(planes, planes, iSYMBOL, LAYER_CCOUNT)
         self.bn2 = norm_layer(planes)
         self.downsample = downsample
         self.stride = stride
@@ -188,6 +191,8 @@ class Bottleneck(nn.Module):
         base_width: int = 64,
         dilation: int = 1,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
+        iSYMBOL=eq,
+        LAYER_CCOUNT: int = 0,
     ) -> None:
         super().__init__()
         if norm_layer is None:
@@ -196,7 +201,7 @@ class Bottleneck(nn.Module):
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv1x1(inplanes, width)
         self.bn1 = norm_layer(width)
-        self.conv2 = conv3x3(width, width, stride, groups, dilation)
+        self.conv2 = conv3x3(width, width, stride, groups, dilation, iSYMBOL, LAYER_CCOUNT)
         self.bn2 = norm_layer(width)
         self.conv3 = conv1x1(width, planes * self.expansion)
         self.bn3 = norm_layer(planes * self.expansion)
@@ -238,6 +243,9 @@ class ResNet(nn.Module):
         width_per_group: int = 64,
         replace_stride_with_dilation: Optional[List[bool]] = None,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
+        iFL_sphe: bool = False,
+        iSYMBOL=eq,
+        LAYER_CCOUNT: int = 0,
     ) -> None:
         super().__init__()
         _log_api_usage_once(self)
@@ -259,15 +267,17 @@ class ResNet(nn.Module):
             )
         self.groups = groups
         self.base_width = width_per_group
-        # self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
-        self.conv1 = DeformConv2d_sphe(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
+        if iFL_sphe:
+            self.conv1 = DeformConv2d_sphe(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
+        else:
+            self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, dilate=replace_stride_with_dilation[0])
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dilate=replace_stride_with_dilation[1])
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2, dilate=replace_stride_with_dilation[2])
+        self.layer1 = self._make_layer(block, 64, layers[0], iSYMBOL=iSYMBOL, LAYER_CCOUNT=LAYER_CCOUNT)
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, dilate=replace_stride_with_dilation[0], iSYMBOL=iSYMBOL, LAYER_CCOUNT=LAYER_CCOUNT)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dilate=replace_stride_with_dilation[1], iSYMBOL=iSYMBOL, LAYER_CCOUNT=LAYER_CCOUNT)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2, dilate=replace_stride_with_dilation[2], iSYMBOL=iSYMBOL, LAYER_CCOUNT=LAYER_CCOUNT)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
@@ -295,6 +305,8 @@ class ResNet(nn.Module):
         blocks: int,
         stride: int = 1,
         dilate: bool = False,
+        iSYMBOL=eq,
+        LAYER_CCOUNT: int = 0,
     ) -> nn.Sequential:
         norm_layer = self._norm_layer
         downsample = None
@@ -311,7 +323,7 @@ class ResNet(nn.Module):
         layers = []
         layers.append(
             block(
-                self.inplanes, planes, stride, downsample, self.groups, self.base_width, previous_dilation, norm_layer
+                self.inplanes, planes, stride, downsample, self.groups, self.base_width, previous_dilation, norm_layer, iSYMBOL, LAYER_CCOUNT,
             )
         )
         self.inplanes = planes * block.expansion
@@ -324,6 +336,8 @@ class ResNet(nn.Module):
                     base_width=self.base_width,
                     dilation=self.dilation,
                     norm_layer=norm_layer,
+                    iSYMBOL=iSYMBOL,
+                    LAYER_CCOUNT=LAYER_CCOUNT,
                 )
             )
 

@@ -2,11 +2,13 @@ from typing import Optional
 
 from torch import nn
 
-import resnet_sphe as resnet
+import resnet_sphe as resnet_sphe
 from torchvision.models._utils import IntermediateLayerGetter
 from torchvision.models.segmentation._utils import _SimpleSegmentationModel, _load_weights
 
 from DeformConv2d_sphe import DeformConv2d_sphe
+
+from operator import eq
 
 __all__ = ["FCN", "fcn_resnet50", "fcn_resnet101"]
 
@@ -39,19 +41,31 @@ class FCNHead(nn.Sequential):
     def __init__(self, in_channels: int, channels: int) -> None:
         inter_channels = in_channels // 4
         layers = [
-            # DeformConv2d_sphe(in_channels, inter_channels, 3, padding=1, bias=False),
             nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
             nn.BatchNorm2d(inter_channels),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Conv2d(inter_channels, channels, 1),
         ]
+        super().__init__(*layers)
 
+
+class FCNHead_sphe(nn.Sequential):
+    def __init__(self, in_channels: int, channels: int) -> None:
+        inter_channels = in_channels // 4
+        layers = [
+            DeformConv2d_sphe(in_channels, inter_channels, 3, padding=1, bias=False),
+            # nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(inter_channels),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Conv2d(inter_channels, channels, 1),
+        ]
         super().__init__(*layers)
 
 
 def _fcn_resnet(
-    backbone: resnet.ResNet,
+    backbone: resnet_sphe.ResNet,
     num_classes: int,
     aux: Optional[bool],
 ) -> FCN:
@@ -62,6 +76,26 @@ def _fcn_resnet(
 
     aux_classifier = FCNHead(1024, num_classes) if aux else None
     classifier = FCNHead(2048, num_classes)
+    return FCN(backbone, classifier, aux_classifier)
+
+
+def _fcn_resnet_sphe(
+    backbone: resnet_sphe.ResNet,
+    num_classes: int,
+    aux: Optional[bool],
+    iFCNHead_sphe: bool = False,
+) -> FCN:
+    return_layers = {"layer4": "out"}
+    if aux:
+        return_layers["layer3"] = "aux"
+    backbone = IntermediateLayerGetter(backbone, return_layers=return_layers)
+
+    if iFCNHead_sphe:
+        aux_classifier = FCNHead_sphe(1024, num_classes) if aux else None
+        classifier = FCNHead_sphe(2048, num_classes)
+    else:
+        aux_classifier = FCNHead(1024, num_classes) if aux else None
+        classifier = FCNHead(2048, num_classes)
     return FCN(backbone, classifier, aux_classifier)
 
 
@@ -85,7 +119,7 @@ def fcn_resnet18(
         aux_loss = True
         pretrained_backbone = False
 
-    backbone = resnet.resnet18(pretrained=pretrained_backbone)
+    backbone = resnet_sphe.resnet18(pretrained=pretrained_backbone)
     model = _fcn_resnet(backbone, num_classes, aux_loss)
 
     # if pretrained:
@@ -100,6 +134,12 @@ def fcn_resnet50(
     num_classes: int = 21,
     aux_loss: Optional[bool] = None,
     pretrained_backbone: bool = True,
+    nodilation: bool = False,
+    iFCNHead_sphe: bool = False,
+    iFL_sphe: bool = False,
+    iSYMBOL=eq,
+    LAYER_CCOUNT: int = 0,
+    net_opt="",
 ) -> FCN:
     """Constructs a Fully-Convolutional Network model with a ResNet-50 backbone.
     Args:
@@ -114,9 +154,12 @@ def fcn_resnet50(
         aux_loss = True
         pretrained_backbone = False
 
-    # backbone = resnet.resnet50(pretrained=pretrained_backbone, replace_stride_with_dilation=[False, True, True])
-    backbone = resnet.resnet50(pretrained=pretrained_backbone, replace_stride_with_dilation=[False, False, False])
-    model = _fcn_resnet(backbone, num_classes, aux_loss)
+    if nodilation:
+        backbone = resnet_sphe.resnet50(pretrained=pretrained_backbone, replace_stride_with_dilation=[False, False, False], iFL_sphe=iFL_sphe, iSYMBOL=iSYMBOL, LAYER_CCOUNT=LAYER_CCOUNT)
+    else:
+        backbone = resnet_sphe.resnet50(pretrained=pretrained_backbone, replace_stride_with_dilation=[False, True, True], iFL_sphe=iFL_sphe, iSYMBOL=iSYMBOL, LAYER_CCOUNT=LAYER_CCOUNT)
+
+    model = _fcn_resnet_sphe(backbone, num_classes, aux_loss, iFCNHead_sphe)
 
     if pretrained:
         arch = "fcn_resnet50_coco"
@@ -144,7 +187,7 @@ def fcn_resnet101(
         aux_loss = True
         pretrained_backbone = False
 
-    backbone = resnet.resnet101(pretrained=pretrained_backbone, replace_stride_with_dilation=[False, True, True])
+    backbone = resnet_sphe.resnet101(pretrained=pretrained_backbone, replace_stride_with_dilation=[False, True, True])
     model = _fcn_resnet(backbone, num_classes, aux_loss)
 
     if pretrained:

@@ -34,13 +34,13 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device(
     'cpu')  # Check if there is GPU if not set trainning to CPU (very slow)
 # # Net = torchvision.models.segmentation.deeplabv3_resnet50(pretrained=True)  # Load net
 # # Net.classifier[4] = torch.nn.Conv2d(256, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
-Net = fcn2.fcn_resnet50(pretrained=True)  # Load net
-# Net = fcn2_sphe.fcn_resnet50(pretrained=True)  # Load net
+# Net = fcn2.fcn_resnet50(pretrained=True)  # Load net
+Net = fcn2_sphe.fcn_resnet50(pretrained=True)  # Load net
 Net.classifier[4] = torch.nn.Conv2d(512, 4, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
 # # Net = fcn2.fcn_resnet18()  # Load net
 # # Net.classifier[4] = torch.nn.Conv2d(512, 2, kernel_size=(1, 1), stride=(1, 1))  # Change final layer to 3 classes
 
-net = "fcn_resnet50"
+net = "fcn_resnet50_nodilation2"
 modelPath = os.path.join("./ckpt", str(net) + '.torch')
 Net.load_state_dict(torch.load(modelPath))  # Load trained model
 Net = Net.to(device)  # Set net to GPU or CPU

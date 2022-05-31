@@ -5,7 +5,7 @@ import numpy as np
 import shutil
 
 dataset_path = "/media/cartizzu/DATA/DATASETS/GRID_425_DATA_1_bil/drone_training_ppo_2022_03_11_17_48_30/CUBE/"
-new_dataset_path = "/media/cartizzu/DATA/DATASETS/GRID_425_DATA_1_bil_test_1/"
+new_dataset_path = "/media/cartizzu/DATA/DATASETS/GRID_425_DATA_1_bil_test_3/"
 
 os.makedirs(new_dataset_path, exist_ok=True)
 os.makedirs(os.path.join(new_dataset_path, "SEG"), exist_ok=True)
@@ -18,11 +18,11 @@ cblack = [0, 0, 0]
 
 list_color = np.array([[]])
 ccounter = 0
-nb_max_img = 5
-for file in [f for f in os.listdir(dataset_path) if (os.path.isfile(os.path.join(dataset_path, f)) and f.endswith('_seg.png'))]:
+nb_max_img = 5000
+for file in [f for f in os.listdir(dataset_path) if (os.path.isfile(os.path.join(dataset_path, f)) and (f.endswith('_front_custom_seg.png') or f.endswith('_back_custom_seg.png')))]:
     ccounter += 1
-    # if int(file.split('_')[0]) <= nb_max_img:
-    if int(file.split('_')[0]) == 42:
+    if int(file.split('_')[0]) <= nb_max_img:
+    # if int(file.split('_')[0]) == 42:
         img = cv2.imread(os.path.join(dataset_path, file), cv2.IMREAD_COLOR)[..., ::-1]
         for idx, lbl in enumerate(["TREE", "SKY", "GROUND"]):
             os.makedirs(os.path.join(new_dataset_path, str(lbl)), exist_ok=True)

@@ -6,8 +6,6 @@ import resnet
 from torchvision.models._utils import IntermediateLayerGetter
 from torchvision.models.segmentation._utils import _SimpleSegmentationModel, _load_weights
 
-from DeformConv2d_sphe import DeformConv2d_sphe
-
 __all__ = ["FCN", "fcn_resnet50", "fcn_resnet101"]
 
 
@@ -39,7 +37,6 @@ class FCNHead(nn.Sequential):
     def __init__(self, in_channels: int, channels: int) -> None:
         inter_channels = in_channels // 4
         layers = [
-            # DeformConv2d_sphe(in_channels, inter_channels, 3, padding=1, bias=False),
             nn.Conv2d(in_channels, inter_channels, 3, padding=1, bias=False),
             nn.BatchNorm2d(inter_channels),
             nn.ReLU(),
@@ -93,12 +90,14 @@ def fcn_resnet18(
     #     _load_weights(arch, model, model_urls.get(arch, None), progress)
     return model
 
+
 def fcn_resnet50(
     pretrained: bool = False,
     progress: bool = True,
     num_classes: int = 21,
     aux_loss: Optional[bool] = None,
     pretrained_backbone: bool = True,
+    nodilation: bool = False,
 ) -> FCN:
     """Constructs a Fully-Convolutional Network model with a ResNet-50 backbone.
     Args:
@@ -113,8 +112,11 @@ def fcn_resnet50(
         aux_loss = True
         pretrained_backbone = False
 
-    # backbone = resnet.resnet50(pretrained=pretrained_backbone, replace_stride_with_dilation=[False, True, True])
-    backbone = resnet.resnet50(pretrained=pretrained_backbone, replace_stride_with_dilation=[False, False, False])
+    if nodilation:
+        backbone = resnet.resnet50(pretrained=pretrained_backbone, replace_stride_with_dilation=[False, False, False])
+    else:
+        backbone = resnet.resnet50(pretrained=pretrained_backbone, replace_stride_with_dilation=[False, True, True])
+
     model = _fcn_resnet(backbone, num_classes, aux_loss)
 
     if pretrained:
